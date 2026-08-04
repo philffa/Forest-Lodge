@@ -126,6 +126,8 @@ create table if not exists vacancy (
 -- Optional occupant reference, so condition/damage can be tied to a specific stay.
 -- Keep this to the minimum you need (e.g. first name + last initial) — see SETUP.md privacy note.
 alter table vacancy add column if not exists current_occupant_name text;
+-- Optional expected vacate date (duration of stay is calculated from/to this in the app, not stored separately).
+alter table vacancy add column if not exists expected_vacate_date date;
 
 -- ---------- Vacancy history ----------
 create table if not exists vacancy_events (
