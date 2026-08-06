@@ -1,0 +1,1239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>Shelter Ops</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root{
+    --paper:#F6F5F1;
+    --surface:#FFFFFF;
+    --line:#E4E2DA;
+    --ink:#1F2430;
+    --ink-soft:#5B6270;
+    --accent:#0F6E6E;
+    --accent-ink:#FFFFFF;
+    --low:#6B8F71;
+    --medium:#C79A3D;
+    --high:#C2622D;
+    --urgent:#A62B2B;
+    --vacant:#4C8C6B;
+    --occupied:#38516E;
+    --oos:#A62B2B;
+    --radius:10px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--paper);
+    color:var(--ink);
+    font-family:'IBM Plex Sans',system-ui,sans-serif;
+    -webkit-font-smoothing:antialiased;
+    padding-bottom:78px;
+    min-height:100vh;
+  }
+  h1,h2,h3{font-family:'Archivo',sans-serif;letter-spacing:-0.01em;margin:0;}
+  .mono{font-family:'IBM Plex Mono',monospace;}
+  button{font-family:inherit;}
+  button:disabled{opacity:0.6;cursor:default;}
+  #app{max-width:640px;margin:0 auto;padding:16px;}
+  .hidden{display:none !important;}
+
+  .topbar{
+    display:flex;align-items:center;justify-content:space-between;
+    padding:14px 16px;background:var(--surface);border-bottom:1px solid var(--line);
+    position:sticky;top:0;z-index:10;
+  }
+  .topbar h1{font-size:18px;font-weight:800;color:var(--ink);}
+  .topbar .who{font-size:12px;color:var(--ink-soft);}
+  .signout{background:none;border:none;color:var(--ink-soft);font-size:12px;text-decoration:underline;cursor:pointer;}
+
+  .tabbar{
+    position:fixed;bottom:0;left:0;right:0;
+    display:flex;background:var(--surface);border-top:1px solid var(--line);
+    z-index:20;
+  }
+  .tabbar button{
+    flex:1;border:none;background:none;padding:10px 4px 8px;
+    font-size:12px;font-weight:600;color:var(--ink-soft);cursor:pointer;
+    display:flex;flex-direction:column;align-items:center;gap:4px;
+  }
+  .tabbar button.active{color:var(--accent);}
+  .tabbadge{
+    display:inline-block;min-width:16px;height:16px;line-height:16px;border-radius:8px;
+    background:var(--urgent);color:#fff;font-size:10px;font-weight:700;margin-left:2px;padding:0 4px;
+    position:relative;top:-10px;
+  }
+
+  .card{
+    background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);
+    padding:14px;margin-bottom:10px;
+  }
+  .tag-strip{border-left:5px solid var(--line);padding-left:10px;margin-left:-15px;}
+  .btn{
+    background:var(--accent);color:var(--accent-ink);border:none;border-radius:8px;
+    padding:10px 16px;font-weight:600;font-size:14px;cursor:pointer;
+  }
+  .btn.secondary{background:var(--surface);color:var(--ink);border:1px solid var(--line);}
+  .btn.small{padding:6px 10px;font-size:12px;}
+  .btn.block{width:100%;}
+  input,select,textarea{
+    width:100%;padding:10px;border:1px solid var(--line);border-radius:8px;
+    font-family:inherit;font-size:14px;background:var(--surface);color:var(--ink);
+    margin-bottom:10px;
+  }
+  label{font-size:12px;font-weight:600;color:var(--ink-soft);display:block;margin-bottom:4px;}
+  .pill{
+    display:inline-block;padding:3px 9px;border-radius:99px;font-size:11px;font-weight:700;
+    text-transform:uppercase;letter-spacing:0.03em;color:#fff;
+  }
+  .row{display:flex;gap:8px;align-items:center;}
+  .row.between{justify-content:space-between;}
+  .muted{color:var(--ink-soft);font-size:13px;}
+  .section-title{font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;color:var(--ink-soft);margin:18px 0 8px;}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;}
+  .backlink{background:none;border:none;color:var(--accent);font-weight:600;font-size:14px;cursor:pointer;padding:4px 0;margin-bottom:8px;}
+  .thumb{width:64px;height:64px;object-fit:cover;border-radius:6px;border:1px solid var(--line);}
+  .thumbrow{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0;}
+  .modal-bg{position:fixed;inset:0;background:rgba(31,36,48,0.5);display:flex;align-items:flex-end;justify-content:center;z-index:50;}
+  .modal{background:var(--surface);border-radius:16px 16px 0 0;padding:18px;width:100%;max-width:640px;max-height:88vh;overflow-y:auto;}
+  .center-modal{align-items:center;}
+  .center-modal .modal{border-radius:16px;}
+  .empty{text-align:center;padding:40px 10px;color:var(--ink-soft);}
+  .err{color:var(--urgent);font-size:13px;margin-bottom:8px;}
+  .linklike{background:none;border:none;color:var(--accent);font-size:13px;font-weight:600;cursor:pointer;padding:0;}
+
+  #printArea{display:none;}
+  @media print{
+    body > *:not(#printArea){display:none !important;}
+    #printArea{display:block !important;padding:20px;font-family:'IBM Plex Sans',sans-serif;}
+    #printArea img{width:140px;margin:4px;border-radius:4px;}
+  }
+</style>
+</head>
+<body>
+
+<div id="app"></div>
+<div id="printArea"></div>
+
+<script>
+/* ============================================================
+   CONFIG — edit these two lines with your Supabase project values
+   (Supabase dashboard > Settings > API)
+   ============================================================ */
+const SUPABASE_URL = "YOUR_SUPABASE_URL";
+const SUPABASE_ANON_KEY = "YOUR_SUPABASE_ANON_KEY";
+
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const PHOTO_BUCKET = "maintenance-photos";
+
+const URGENCY = ["low","medium","high","urgent"];
+const URGENCY_COLOR = { low:"var(--low)", medium:"var(--medium)", high:"var(--high)", urgent:"var(--urgent)" };
+const STATUS_LABEL = { open:"Open", in_progress:"In progress", fixed:"Fixed", wont_fix:"Won't fix" };
+const CATEGORIES = ["plumbing","electrical","structural","furniture","pest","cleaning","appliance","other"];
+
+/* Shopping list sourcing rule — plain logic, not AI. No cost entered defaults
+   to "hardware run" since most quick, no-estimate requests are everyday small
+   items. Tweak the $ cutoff here. */
+const SHOP_THRESHOLD = 40;
+const SHOP_STATUS = { needed:"Needed", sourcing:"Sourcing", bought:"Bought", cancelled:"Cancelled" };
+function shopBucket(item){
+  if(item.estimated_cost === null || item.estimated_cost === undefined) return "hardware";
+  return item.estimated_cost < SHOP_THRESHOLD ? "hardware" : "secondhand";
+}
+
+let state = {
+  user: null,
+  profile: null,
+  rooms: [],
+  vacancy: {},
+  activeTab: "maintenance",
+  view: { screen: "roomList" },
+  vacancySelectMode: false,
+  vacancySelection: new Set(),
+};
+
+const app = document.getElementById("app");
+function esc(s){ if(s===null||s===undefined) return ""; return String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+function fmtDate(iso){ const d = new Date(iso); return d.toLocaleDateString(undefined,{month:"short",day:"numeric"}) + " " + d.toLocaleTimeString(undefined,{hour:"numeric",minute:"2-digit"}); }
+
+/* ---------- Prevent accidental double-submits on flaky connections ---------- */
+function withBusyButton(btn, label){
+  btn.disabled = true;
+  const orig = btn.textContent;
+  btn.textContent = label || "Saving…";
+  return () => { btn.disabled = false; btn.textContent = orig; };
+}
+
+/* ---------- Photo compression before upload (big time/data saver on mobile) ---------- */
+const MAX_PHOTO_MB = 30; // guard against a rogue huge file (panorama, RAW, etc.) crashing the tab
+function filterOversizedFiles(fileList){
+  const ok = [], skipped = [];
+  for(const f of fileList){
+    if(f.size > MAX_PHOTO_MB * 1024 * 1024) skipped.push(f.name);
+    else ok.push(f);
+  }
+  return { ok, skipped };
+}
+async function compressImage(file, maxDim = 1600, quality = 0.8){
+  // createImageBitmap lets the browser decode straight into a bitmap it can free
+  // immediately after, which uses noticeably less peak memory than an <img> tag
+  // on phones with high-megapixel cameras — that's the most likely thing behind
+  // a whole-page crash on photo upload.
+  if(window.createImageBitmap){
+    try{
+      const bitmap = await createImageBitmap(file);
+      let { width, height } = bitmap;
+      if(width > height && width > maxDim){ height = Math.round(height * maxDim / width); width = maxDim; }
+      else if(height > maxDim){ width = Math.round(width * maxDim / height); height = maxDim; }
+      const canvas = document.createElement("canvas");
+      canvas.width = width; canvas.height = height;
+      canvas.getContext("2d").drawImage(bitmap, 0, 0, width, height);
+      bitmap.close();
+      const blob = await new Promise((resolve, reject) => canvas.toBlob(b => b ? resolve(b) : reject(new Error("Could not process photo")), "image/jpeg", quality));
+      return blob;
+    } catch(e){
+      console.warn("createImageBitmap path failed, falling back:", e);
+    }
+  }
+  // Fallback for older browsers, or if the fast path above couldn't decode this file.
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      let { width, height } = img;
+      if(width > height && width > maxDim){ height = Math.round(height * maxDim / width); width = maxDim; }
+      else if(height > maxDim){ width = Math.round(width * maxDim / height); height = maxDim; }
+      const canvas = document.createElement("canvas");
+      canvas.width = width; canvas.height = height;
+      canvas.getContext("2d").drawImage(img, 0, 0, width, height);
+      canvas.toBlob(blob => {
+        URL.revokeObjectURL(url);
+        blob ? resolve(blob) : reject(new Error("Could not process photo"));
+      }, "image/jpeg", quality);
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("Could not read photo — the format may not be supported by this browser.")); };
+    img.src = url;
+  });
+}
+async function compressAndUpload(file, pathPrefix){
+  try{
+    const blob = await compressImage(file);
+    const path = `${pathPrefix}/${Date.now()}-${Math.random().toString(36).slice(2,7)}.jpg`;
+    const { error } = await sb.storage.from(PHOTO_BUCKET).upload(path, blob, { contentType: "image/jpeg" });
+    if(error) return { path:null, reason: error.message || String(error) };
+    return { path, reason:null };
+  } catch(e){ return { path:null, reason: e.message || String(e) }; }
+}
+async function uploadPhotos(fileList, itemId, eventId){
+  if(!fileList || !fileList.length) return;
+  const { ok, skipped } = filterOversizedFiles(fileList);
+  const failed = [];
+  for(const file of ok){
+    const { path, reason } = await compressAndUpload(file, itemId);
+    if(path){
+      const { error: insErr } = await sb.from("maintenance_photos").insert({ item_id:itemId, event_id:eventId, storage_path:path, created_by: state.user.id });
+      if(insErr) failed.push(`${file.name}: uploaded but couldn't save the record (${insErr.message})`);
+    } else {
+      failed.push(`${file.name}: ${reason || "unknown error"}`);
+    }
+  }
+  warnAboutPhotoIssues(skipped, failed);
+}
+async function uploadSnapshotPhotos(fileList, snapshotId){
+  if(!fileList || !fileList.length) return;
+  const { ok, skipped } = filterOversizedFiles(fileList);
+  const failed = [];
+  for(const file of ok){
+    const { path, reason } = await compressAndUpload(file, `snapshots/${snapshotId}`);
+    if(path){
+      const { error: insErr } = await sb.from("room_snapshot_photos").insert({ snapshot_id:snapshotId, storage_path:path, created_by: state.user.id });
+      if(insErr) failed.push(`${file.name}: uploaded but couldn't save the record (${insErr.message})`);
+    } else {
+      failed.push(`${file.name}: ${reason || "unknown error"}`);
+    }
+  }
+  warnAboutPhotoIssues(skipped, failed);
+}
+function warnAboutPhotoIssues(skipped, failed){
+  const msgs = [];
+  if(skipped.length) msgs.push(`Skipped (over ${MAX_PHOTO_MB}MB): ${skipped.join(", ")}`);
+  if(failed.length) msgs.push(`Couldn't upload:\n${failed.join("\n")}`);
+  if(msgs.length) alert("Some photos didn't upload.\n\n" + msgs.join("\n") + "\n\nEverything else on this entry was saved fine.");
+}
+
+/* ============================================================
+   BOOT / AUTH
+   ============================================================ */
+async function boot(){
+  const { data: { session } } = await sb.auth.getSession();
+  if(session){ await onSignedIn(session.user); } else { renderLogin(); }
+}
+sb.auth.onAuthStateChange((event, session) => {
+  if(event === "SIGNED_IN") onSignedIn(session.user);
+  if(event === "SIGNED_OUT"){ state.user=null; state.profile=null; renderLogin(); }
+});
+
+let realtimeStarted = false;
+async function onSignedIn(user){
+  state.user = user;
+  const { data: profile } = await sb.from("profiles").select("*").eq("id", user.id).maybeSingle();
+  if(!profile){ renderNamePrompt(); return; }
+  state.profile = profile;
+  await loadRoomsAndVacancy();
+  renderShell();
+  if(!realtimeStarted){ setupRealtime(); realtimeStarted = true; }
+}
+
+async function loadRoomsAndVacancy(){
+  const { data: rooms } = await sb.from("rooms").select("*").order("room_number");
+  const { data: vac } = await sb.from("vacancy").select("*");
+  state.rooms = rooms || [];
+  state.vacancy = {};
+  (vac||[]).forEach(v => state.vacancy[v.room_id] = v);
+}
+
+function renderLogin(){
+  app.innerHTML = `
+    <div style="padding-top:60px;">
+      <h1 style="font-size:26px;margin-bottom:4px;">Shelter Ops</h1>
+      <p class="muted" style="margin-bottom:24px;">Maintenance · Inventory · Shopping · Vacancy</p>
+      <div class="card">
+        <div id="loginErr" class="err hidden"></div>
+        <label>Email</label>
+        <input id="loginEmail" type="email" autocomplete="username">
+        <label>Password</label>
+        <input id="loginPass" type="password" autocomplete="current-password">
+        <button class="btn block" onclick="doLogin(this)">Sign in</button>
+        <button class="btn secondary block" style="margin-top:8px;" onclick="doReset()">Forgot password</button>
+      </div>
+      <p class="muted" style="font-size:12px;">Accounts are created by your manager in Supabase. Contact them if you don't have a login yet.</p>
+    </div>
+  `;
+}
+async function doLogin(btn){
+  const email = document.getElementById("loginEmail").value.trim();
+  const password = document.getElementById("loginPass").value;
+  const errEl = document.getElementById("loginErr");
+  errEl.classList.add("hidden");
+  const restore = withBusyButton(btn, "Signing in…");
+  const { error } = await sb.auth.signInWithPassword({ email, password });
+  restore();
+  if(error){ errEl.textContent = error.message; errEl.classList.remove("hidden"); }
+}
+async function doReset(){
+  const email = document.getElementById("loginEmail").value.trim();
+  if(!email){ alert("Enter your email above first, then tap Forgot password."); return; }
+  const { error } = await sb.auth.resetPasswordForEmail(email);
+  alert(error ? error.message : "Password reset email sent.");
+}
+
+function renderNamePrompt(){
+  app.innerHTML = `
+    <div style="padding-top:60px;">
+      <h1 style="font-size:22px;margin-bottom:16px;">What's your name?</h1>
+      <div class="card">
+        <div id="nameErr" class="err hidden"></div>
+        <label>Display name (shown on things you log)</label>
+        <input id="fullName" placeholder="e.g. Sam T.">
+        <button class="btn block" onclick="saveProfile(this)">Continue</button>
+      </div>
+    </div>
+  `;
+}
+async function saveProfile(btn){
+  const full_name = document.getElementById("fullName").value.trim();
+  if(!full_name) return;
+  const restore = withBusyButton(btn);
+  const { error } = await sb.from("profiles").insert({ id: state.user.id, full_name });
+  if(error){ restore(); document.getElementById("nameErr").textContent = error.message; document.getElementById("nameErr").classList.remove("hidden"); return; }
+  const { data: profile } = await sb.from("profiles").select("*").eq("id", state.user.id).maybeSingle();
+  state.profile = profile;
+  await loadRoomsAndVacancy();
+  renderShell();
+  if(!realtimeStarted){ setupRealtime(); realtimeStarted = true; }
+}
+async function signOut(){ await sb.auth.signOut(); }
+
+/* ============================================================
+   SHELL
+   ============================================================ */
+function renderShell(){
+  app.innerHTML = `
+    <div class="topbar">
+      <div>
+        <h1>Shelter Ops</h1>
+        <div class="who">Signed in as ${esc(state.profile.full_name)}</div>
+      </div>
+      <button class="signout" onclick="signOut()">Sign out</button>
+    </div>
+    <div id="tabContent"></div>
+    <div class="tabbar">
+      <button data-tab="maintenance" onclick="switchTab('maintenance')">🔧 Maintenance<span id="badgeMaintenance" class="tabbadge hidden"></span></button>
+      <button data-tab="inventory" onclick="switchTab('inventory')">📦 Inventory<span id="badgeInventory" class="tabbadge hidden"></span></button>
+      <button data-tab="shopping" onclick="switchTab('shopping')">🛒 Shopping<span id="badgeShopping" class="tabbadge hidden"></span></button>
+      <button data-tab="vacancy" onclick="switchTab('vacancy')">🛏 Vacancy</button>
+    </div>
+  `;
+  switchTab(state.activeTab);
+  updateTabBadges();
+}
+function switchTab(tab){
+  if(state.activeTab === "vacancy" && tab !== "vacancy"){
+    state.vacancySelectMode = false;
+    state.vacancySelection = new Set();
+    const bar = document.getElementById("vacSelectBar");
+    if(bar) bar.remove();
+  }
+  state.activeTab = tab;
+  const screens = { maintenance:"roomList", inventory:"invList", shopping:"shopList", vacancy:"vacGrid" };
+  state.view = { screen: screens[tab] };
+  document.querySelectorAll(".tabbar button").forEach(b => b.classList.toggle("active", b.dataset.tab===tab));
+  if(tab==="maintenance") renderMaintenance();
+  if(tab==="inventory") renderInventory();
+  if(tab==="shopping") renderShopping();
+  if(tab==="vacancy") renderVacancy();
+}
+
+function setBadge(id, count, colorVar){
+  const el = document.getElementById(id);
+  if(!el) return;
+  if(count > 0){ el.textContent = count > 99 ? "99+" : count; el.style.background = colorVar; el.classList.remove("hidden"); }
+  else { el.classList.add("hidden"); }
+}
+async function updateTabBadges(){
+  if(!state.user) return;
+  const { data: urgentItems } = await sb.from("maintenance_items").select("id").in("urgency",["high","urgent"]).in("status",["open","in_progress"]);
+  setBadge("badgeMaintenance", (urgentItems||[]).length, "var(--urgent)");
+
+  const { data: invItems } = await sb.from("inventory_items").select("id,quantity,low_stock_threshold").not("low_stock_threshold","is",null);
+  const lowCount = (invItems||[]).filter(i => i.quantity <= i.low_stock_threshold).length;
+  setBadge("badgeInventory", lowCount, "var(--medium)");
+
+  const { data: shopItems } = await sb.from("shopping_items").select("id").in("status",["needed","sourcing"]);
+  setBadge("badgeShopping", (shopItems||[]).length, "var(--accent)");
+}
+
+/* ============================================================
+   LIVE SYNC — other people's changes show up without reopening the app.
+   Requires the tables to be added to the `supabase_realtime` publication
+   (schema.sql does this for you automatically).
+   ============================================================ */
+function setupRealtime(){
+  const tables = ["maintenance_items","maintenance_events","maintenance_photos","room_snapshots","room_snapshot_photos","inventory_items","inventory_events","shopping_items","vacancy","vacancy_events"];
+  const channel = sb.channel("shelter-ops-changes");
+  tables.forEach(t => channel.on("postgres_changes", { event:"*", schema:"public", table:t }, handleRealtimeChange));
+  channel.subscribe();
+}
+let realtimeDebounce = null;
+function handleRealtimeChange(){
+  clearTimeout(realtimeDebounce);
+  realtimeDebounce = setTimeout(async () => {
+    await loadRoomsAndVacancy();
+    updateTabBadges();
+    if(document.querySelector(".modal-bg")) return; // don't yank focus from someone mid-form
+    if(state.activeTab==="maintenance") renderMaintenance();
+    if(state.activeTab==="inventory") renderInventory();
+    if(state.activeTab==="shopping") renderShopping();
+    if(state.activeTab==="vacancy") renderVacancy();
+  }, 400);
+}
+
+/* ============================================================
+   VACANCY TAB — tap a room to update it, long-press to select
+   several rooms and update them together.
+   ============================================================ */
+let longPressTimer = null;
+let longPressFired = false;
+function startLongPress(roomId){
+  longPressFired = false;
+  clearTimeout(longPressTimer);
+  longPressTimer = setTimeout(() => { longPressFired = true; enterSelectMode(roomId); }, 500);
+}
+function cancelLongPress(){ clearTimeout(longPressTimer); }
+function handleRoomTap(roomId){
+  if(longPressFired){ longPressFired = false; return; } // swallow the click right after a long-press
+  if(state.vacancySelectMode){ toggleRoomSelection(roomId); }
+  else { openVacancyPicker([roomId]); }
+}
+function enterSelectMode(roomId){
+  state.vacancySelectMode = true;
+  state.vacancySelection = new Set([roomId]);
+  renderVacancy();
+}
+function toggleRoomSelection(roomId){
+  if(state.vacancySelection.has(roomId)) state.vacancySelection.delete(roomId);
+  else state.vacancySelection.add(roomId);
+  if(state.vacancySelection.size === 0) state.vacancySelectMode = false;
+  renderVacancy();
+}
+function exitSelectMode(){ state.vacancySelectMode = false; state.vacancySelection = new Set(); renderVacancy(); }
+
+function daysUntil(dateStr){
+  const today = new Date(); today.setHours(0,0,0,0);
+  const target = new Date(dateStr + "T00:00:00");
+  return Math.round((target - today) / 86400000);
+}
+function vacateDateLine(v){
+  if(v.status !== "occupied" || !v.expected_vacate_date) return "";
+  const d = daysUntil(v.expected_vacate_date);
+  const dateLabel = new Date(v.expected_vacate_date + "T00:00:00").toLocaleDateString(undefined,{month:"short",day:"numeric"});
+  if(d < 0) return `<div class="muted" style="font-size:11px;margin-top:2px;color:var(--urgent);font-weight:600;">Vacate date passed (${dateLabel})</div>`;
+  if(d === 0) return `<div class="muted" style="font-size:11px;margin-top:2px;color:var(--high);font-weight:600;">Vacates today</div>`;
+  return `<div class="muted" style="font-size:11px;margin-top:2px;">Vacates in ${d}d (${dateLabel})</div>`;
+}
+
+function renderVacancy(){
+  const c = document.getElementById("tabContent");
+  const selMode = state.vacancySelectMode;
+  const cards = state.rooms.map(r => {
+    const v = state.vacancy[r.id] || { status:"vacant" };
+    const color = v.status==="occupied" ? "var(--occupied)" : (v.status==="out_of_service" ? "var(--oos)" : "var(--vacant)");
+    const label = v.status==="occupied" ? "Occupied" : (v.status==="out_of_service" ? "Out of service" : "Vacant");
+    const occLine = (v.status==="occupied" && v.current_occupant_name) ? `<div class="muted" style="font-size:11px;margin-top:4px;">${esc(v.current_occupant_name)}</div>` : "";
+    const selected = state.vacancySelection.has(r.id);
+    return `<div class="card" style="text-align:center;cursor:pointer;padding:12px 8px;position:relative;${selected?'outline:2px solid var(--accent);':''}"
+        onpointerdown="startLongPress(${r.id})" onpointerup="cancelLongPress()" onpointerleave="cancelLongPress()" onclick="handleRoomTap(${r.id})">
+      ${selMode ? `<div style="position:absolute;top:6px;right:6px;width:18px;height:18px;border-radius:4px;border:2px solid ${selected?'var(--accent)':'var(--line)'};background:${selected?'var(--accent)':'transparent'};color:#fff;font-size:12px;line-height:14px;">${selected?'✓':''}</div>` : ""}
+      <div class="mono" style="font-size:18px;font-weight:600;">${esc(r.room_number)}</div>
+      <div class="pill" style="background:${color};margin-top:6px;">${label}</div>
+      ${occLine}
+      ${vacateDateLine(v)}
+    </div>`;
+  }).join("");
+  c.innerHTML = `
+    <div class="section-title">Room status — tap to update, long-press to select several</div>
+    <div class="grid">${cards}</div>
+  `;
+  const existingBar = document.getElementById("vacSelectBar");
+  if(existingBar) existingBar.remove();
+  if(selMode){
+    const bar = document.createElement("div");
+    bar.id = "vacSelectBar";
+    bar.style.cssText = "position:fixed;bottom:64px;left:0;right:0;background:var(--ink);color:#fff;padding:10px 16px;display:flex;gap:10px;align-items:center;justify-content:space-between;z-index:25;";
+    bar.innerHTML = `
+      <span>${state.vacancySelection.size} selected</span>
+      <div class="row" style="gap:8px;">
+        <button class="btn secondary small" onclick="exitSelectMode()">Cancel</button>
+        <button class="btn small" onclick="openVacancyPicker([...state.vacancySelection])">Update</button>
+      </div>`;
+    document.body.appendChild(bar);
+  }
+}
+
+function openVacancyPicker(roomIds){
+  const single = roomIds.length === 1;
+  const room = single ? state.rooms.find(r=>r.id===roomIds[0]) : null;
+  const v = single ? (state.vacancy[roomIds[0]] || {}) : {};
+  const bg = document.createElement("div");
+  bg.className = "modal-bg center-modal";
+  bg.innerHTML = `
+    <div class="modal">
+      <h3 style="margin-bottom:12px;">${single ? `Room ${esc(room.room_number)}` : `${roomIds.length} rooms selected`}</h3>
+      ${single ? `
+        <label>Occupant name — optional, only used if marking Occupied. Keep it short (first name + last initial is plenty).</label>
+        <input id="vacOccupant" value="${esc(v.current_occupant_name || "")}" placeholder="e.g. Jamie K.">
+        <div class="row">
+          <div style="flex:1;">
+            <label>Expected vacate date</label>
+            <input id="vacDate" type="date" value="${v.expected_vacate_date || ""}" oninput="syncVacateFromDate()">
+          </div>
+          <div style="flex:1;">
+            <label>Or duration of stay (days)</label>
+            <input id="vacDuration" type="number" min="1" placeholder="e.g. 14" oninput="syncVacateFromDuration()">
+          </div>
+        </div>
+        <p class="muted" style="margin:-4px 0 10px;">Fill in either one — they'll keep each other in sync. Both only apply if you mark this room Occupied.</p>
+      ` : `<p class="muted" style="margin-top:-6px;">Applies the same status to all selected rooms. Add occupant name / vacate date individually afterward if needed.</p>`}
+      <button class="btn block" style="background:var(--vacant);margin-bottom:8px;" onclick="applyVacancyChange([${roomIds.join(",")}],'vacant',this)">Vacant</button>
+      <button class="btn block" style="background:var(--occupied);margin-bottom:8px;" onclick="applyVacancyChange([${roomIds.join(",")}],'occupied',this)">Occupied</button>
+      <button class="btn block" style="background:var(--oos);margin-bottom:8px;" onclick="applyVacancyChange([${roomIds.join(",")}],'out_of_service',this)">Out of service</button>
+      <button class="btn secondary block" onclick="closeModal()">Cancel</button>
+    </div>`;
+  document.body.appendChild(bg);
+}
+function syncVacateFromDuration(){
+  const durVal = document.getElementById("vacDuration").value;
+  if(!durVal) return;
+  const d = new Date(); d.setDate(d.getDate() + parseInt(durVal));
+  document.getElementById("vacDate").value = d.toISOString().slice(0,10);
+}
+function syncVacateFromDate(){
+  const dateVal = document.getElementById("vacDate").value;
+  if(!dateVal) return;
+  const d = daysUntil(dateVal);
+  document.getElementById("vacDuration").value = d >= 0 ? d : "";
+}
+function closeModal(){ document.querySelectorAll(".modal-bg").forEach(m=>m.remove()); }
+async function applyVacancyChange(roomIds, status, btn){
+  const restore = btn ? withBusyButton(btn) : ()=>{};
+  const single = roomIds.length === 1;
+  const occupantInput = document.getElementById("vacOccupant");
+  const dateInput = document.getElementById("vacDate");
+  const occupantName = single && occupantInput ? occupantInput.value.trim() : "";
+  const vacateDate = single && dateInput ? (dateInput.value || null) : null;
+  const current_occupant_name = status === "occupied" ? (occupantName || null) : null;
+  const expected_vacate_date = status === "occupied" ? vacateDate : null;
+
+  try{
+    for(const roomId of roomIds){
+      const priorRecord = state.vacancy[roomId] || {};
+      const prev = priorRecord.status || "vacant";
+      const event_occupant_name = status === "occupied" ? current_occupant_name : (priorRecord.current_occupant_name || null);
+      const { error: upErr } = await sb.from("vacancy").upsert({ room_id: roomId, status, current_occupant_name, expected_vacate_date, updated_by: state.user.id, updated_at: new Date().toISOString() });
+      if(upErr) throw upErr;
+      const { error: evErr } = await sb.from("vacancy_events").insert({ room_id: roomId, old_status: prev, new_status: status, occupant_name: event_occupant_name, created_by: state.user.id });
+      if(evErr) throw evErr;
+    }
+    closeModal();
+    exitSelectMode();
+    await loadRoomsAndVacancy();
+    renderVacancy();
+  } catch(e){
+    alert("Couldn't update room status: " + (e.message || "unknown error") + "\n\nIf this just started happening, make sure the latest schema.sql has been re-run in Supabase's SQL editor (it adds a column this feature needs).");
+  } finally {
+    restore();
+  }
+}
+
+/* ============================================================
+   MAINTENANCE TAB
+   ============================================================ */
+async function renderMaintenance(){
+  const c = document.getElementById("tabContent");
+  if(state.view.screen === "roomList"){
+    const { data: items } = await sb.from("maintenance_items").select("id,room_id,urgency,status").neq("status","fixed").neq("status","wont_fix");
+    const counts = {};
+    (items||[]).forEach(i => {
+      counts[i.room_id] = counts[i.room_id] || { total:0, urgent:false };
+      counts[i.room_id].total++;
+      if(i.urgency==="urgent" || i.urgency==="high") counts[i.room_id].urgent = true;
+    });
+    const cards = state.rooms.map(r=>{
+      const cnt = counts[r.id];
+      return `<div class="card ${cnt&&cnt.urgent?'tag-strip':''}" style="${cnt&&cnt.urgent?'border-left-color:var(--urgent);':''}cursor:pointer;" onclick="openRoom(${r.id})">
+        <div class="row between">
+          <div class="mono" style="font-weight:600;font-size:16px;">Room ${esc(r.room_number)}</div>
+          ${cnt ? `<span class="pill" style="background:${cnt.urgent?'var(--urgent)':'var(--medium)'};">${cnt.total} open</span>` : `<span class="muted">No open issues</span>`}
+        </div>
+      </div>`;
+    }).join("");
+    c.innerHTML = `
+      <div class="row between" style="margin:4px 0 12px;">
+        <div class="section-title" style="margin:0;">Rooms</div>
+        <button class="btn small" onclick="renderAllIssues()">View all open issues</button>
+      </div>
+      ${cards}
+    `;
+  } else if(state.view.screen === "allIssues"){
+    await renderAllIssuesScreen(c);
+  } else if(state.view.screen === "roomDetail"){
+    await renderRoomDetail(c, state.view.roomId);
+  } else if(state.view.screen === "itemDetail"){
+    await renderItemDetail(c, state.view.itemId);
+  }
+}
+function openRoom(roomId){ state.view = { screen:"roomDetail", roomId }; renderMaintenance(); }
+function renderAllIssues(){ state.view = { screen:"allIssues" }; renderMaintenance(); }
+
+async function renderAllIssuesScreen(c){
+  const { data: items } = await sb.from("maintenance_items").select("*, rooms(room_number)").neq("status","fixed").neq("status","wont_fix");
+  const order = { urgent:0, high:1, medium:2, low:3 };
+  (items||[]).sort((a,b)=> order[a.urgency]-order[b.urgency]);
+  const rows = (items||[]).map(i => itemCard(i, i.rooms ? i.rooms.room_number : "?")).join("") || `<div class="empty">No open issues 🎉</div>`;
+  c.innerHTML = `
+    <button class="backlink" onclick="switchTab('maintenance')">← Rooms</button>
+    <div class="section-title">All open issues, most urgent first</div>
+    ${rows}
+  `;
+}
+
+function itemCard(i, roomNumber){
+  return `<div class="card tag-strip" style="border-left-color:${URGENCY_COLOR[i.urgency]};cursor:pointer;" onclick="openItem('${i.id}')">
+    <div class="row between">
+      <div style="font-weight:600;">${esc(i.title)}</div>
+      <span class="pill" style="background:${URGENCY_COLOR[i.urgency]};">${i.urgency}</span>
+    </div>
+    <div class="muted">Room ${esc(roomNumber)} · ${STATUS_LABEL[i.status]} · ${esc(i.category)}</div>
+  </div>`;
+}
+
+async function renderRoomDetail(c, roomId){
+  const room = state.rooms.find(r=>r.id===roomId);
+  const { data: items } = await sb.from("maintenance_items").select("*").eq("room_id", roomId).order("created_at",{ascending:false});
+  const order = { urgent:0, high:1, medium:2, low:3 };
+  const sorted = (items||[]).slice().sort((a,b)=>order[a.urgency]-order[b.urgency]);
+  const rows = sorted.map(i => itemCard(i, room.room_number)).join("") || `<div class="empty">No issues logged for this room yet.</div>`;
+
+  const { data: snapshots } = await sb.from("room_snapshots").select("*, profiles(full_name)").eq("room_id", roomId).order("created_at",{ascending:false});
+  let snapshotHtml = "";
+  for(const s of (snapshots||[])){
+    const { data: photos } = await sb.from("room_snapshot_photos").select("*").eq("snapshot_id", s.id);
+    const thumbs = await Promise.all((photos||[]).map(async p => {
+      const { data } = await sb.storage.from(PHOTO_BUCKET).createSignedUrl(p.storage_path, 3600);
+      return data ? `<img class="thumb" src="${data.signedUrl}" onclick="viewPhoto('${data.signedUrl}')">` : "";
+    }));
+    snapshotHtml += `<div class="card" style="padding:10px 14px;">
+      <div class="row between"><strong style="font-size:13px;">${fmtDate(s.created_at)}</strong><span class="muted">${esc(s.profiles?s.profiles.full_name:"—")}</span></div>
+      ${s.note ? `<div class="muted" style="margin-top:4px;">${esc(s.note)}</div>` : ""}
+      <div class="thumbrow">${thumbs.join("") || ""}</div>
+    </div>`;
+  }
+
+  c.innerHTML = `
+    <button class="backlink" onclick="switchTab('maintenance')">← Rooms</button>
+    <h2 style="font-size:20px;margin-bottom:2px;">Room ${esc(room.room_number)}</h2>
+    <p class="muted" style="margin-bottom:12px;">${esc(room.notes||"")}</p>
+
+    <div class="row" style="margin-bottom:8px;">
+      <button class="btn block" onclick="openNewItemForm(${roomId})">+ Log new issue</button>
+    </div>
+    <div class="row" style="margin-bottom:14px;">
+      <button class="btn secondary block" onclick="openNewSnapshotForm(${roomId})">+ Condition snapshot</button>
+      <button class="btn secondary block" onclick="exportRoomReport(${roomId})">🖨 Export report</button>
+    </div>
+
+    <div class="section-title">Open / recent issues</div>
+    ${rows}
+
+    <div class="section-title">Condition snapshots — dated baseline photos, not tied to any issue</div>
+    ${snapshotHtml || `<div class="empty">No snapshots yet. Take one on a walkthrough so you have a dated "before" on file.</div>`}
+  `;
+}
+
+function openNewItemForm(roomId){
+  const bg = document.createElement("div");
+  bg.className = "modal-bg";
+  bg.innerHTML = `
+    <div class="modal">
+      <h3 style="margin-bottom:12px;">Log an issue</h3>
+      <label>Title</label>
+      <input id="niTitle" placeholder="e.g. Cracked window, bathroom">
+      <label>Category</label>
+      <select id="niCategory">${CATEGORIES.map(c=>`<option value="${c}">${c}</option>`).join("")}</select>
+      <label>Urgency</label>
+      <select id="niUrgency">${URGENCY.map(u=>`<option value="${u}" ${u==='medium'?'selected':''}>${u}</option>`).join("")}</select>
+      <label>Description</label>
+      <textarea id="niDesc" rows="3" placeholder="Details, what's damaged, safety concerns..."></textarea>
+      <label>Photos</label>
+      <input id="niPhotos" type="file" accept="image/*" capture="environment" multiple>
+      <div id="niErr" class="err hidden"></div>
+      <div class="row" style="margin-top:6px;">
+        <button class="btn secondary block" onclick="closeModal()">Cancel</button>
+        <button class="btn block" onclick="submitNewItem(this, ${roomId})">Save</button>
+      </div>
+    </div>`;
+  document.body.appendChild(bg);
+}
+async function submitNewItem(btn, roomId){
+  const title = document.getElementById("niTitle").value.trim();
+  const errEl = document.getElementById("niErr");
+  if(!title){ errEl.textContent = "Give it a short title first."; errEl.classList.remove("hidden"); return; }
+  const restore = withBusyButton(btn);
+  const category = document.getElementById("niCategory").value;
+  const urgency = document.getElementById("niUrgency").value;
+  const description = document.getElementById("niDesc").value.trim();
+  const files = document.getElementById("niPhotos").files;
+  try{
+    const { data: item, error } = await sb.from("maintenance_items").insert({
+      room_id: roomId, title, category, urgency, description, created_by: state.user.id
+    }).select().single();
+    if(error) throw error;
+    const { data: ev } = await sb.from("maintenance_events").insert({
+      item_id: item.id, event_type:"created", new_status:"open", note: description, created_by: state.user.id
+    }).select().single();
+    await uploadPhotos(files, item.id, ev ? ev.id : null);
+    closeModal();
+    openRoom(roomId);
+    updateTabBadges();
+  } catch(e){
+    restore();
+    errEl.textContent = e.message || "Couldn't save, try again.";
+    errEl.classList.remove("hidden");
+  }
+}
+
+function openItem(itemId){ state.view = { screen:"itemDetail", itemId }; renderMaintenance(); }
+
+async function renderItemDetail(c, itemId){
+  const { data: item } = await sb.from("maintenance_items").select("*, rooms(id,room_number)").eq("id", itemId).single();
+  const { data: events } = await sb.from("maintenance_events").select("*, profiles(full_name)").eq("item_id", itemId).order("created_at",{ascending:false});
+  const { data: photos } = await sb.from("maintenance_photos").select("*").eq("item_id", itemId).order("created_at",{ascending:false});
+
+  const photoThumbs = await Promise.all((photos||[]).map(async p => {
+    const { data } = await sb.storage.from(PHOTO_BUCKET).createSignedUrl(p.storage_path, 3600);
+    return data ? `<img class="thumb" src="${data.signedUrl}" onclick="viewPhoto('${data.signedUrl}')">` : "";
+  }));
+
+  const eventRows = (events||[]).map(e => `
+    <div class="card" style="padding:10px 14px;">
+      <div class="row between"><strong style="font-size:13px;">${eventTypeLabel(e)}</strong><span class="muted">${fmtDate(e.created_at)}</span></div>
+      ${e.note ? `<div class="muted" style="margin-top:4px;">${esc(e.note)}</div>` : ""}
+      <div class="muted" style="margin-top:4px;font-size:11px;">by ${esc(e.profiles?e.profiles.full_name:"—")}</div>
+    </div>
+  `).join("");
+
+  c.innerHTML = `
+    <button class="backlink" onclick="openRoom(${item.rooms.id})">← Room ${esc(item.rooms.room_number)}</button>
+    <div class="card tag-strip" style="border-left-color:${URGENCY_COLOR[item.urgency]};">
+      <div class="row between">
+        <h2 style="font-size:18px;">${esc(item.title)}</h2>
+        <span class="pill" style="background:${URGENCY_COLOR[item.urgency]};">${item.urgency}</span>
+      </div>
+      <div class="row between">
+        <div class="muted">${esc(item.category)} · ${STATUS_LABEL[item.status]}</div>
+        <button class="linklike" onclick='openEditItemForm(${JSON.stringify(itemId)})'>Edit details</button>
+      </div>
+      ${item.description ? `<p style="margin-top:8px;">${esc(item.description)}</p>` : ""}
+      <div class="thumbrow">${photoThumbs.join("") || `<span class="muted">No photos yet</span>`}</div>
+    </div>
+
+    <div class="row" style="margin:10px 0;">
+      <select id="statusSelect" style="margin-bottom:0;">
+        ${Object.keys(STATUS_LABEL).map(s=>`<option value="${s}" ${s===item.status?'selected':''}>${STATUS_LABEL[s]}</option>`).join("")}
+      </select>
+      <button class="btn small" onclick="updateItemStatus(this, '${item.id}')">Update</button>
+    </div>
+
+    <button class="btn secondary block" style="margin-bottom:14px;" onclick="openAddEventForm('${item.id}')">+ Add comment / photo</button>
+
+    <div class="section-title">History</div>
+    ${eventRows || `<div class="empty">No history yet.</div>`}
+  `;
+}
+function eventTypeLabel(e){
+  if(e.event_type==="created") return "Issue logged";
+  if(e.event_type==="status_change") return `Status: ${STATUS_LABEL[e.old_status]||e.old_status} → ${STATUS_LABEL[e.new_status]||e.new_status}`;
+  if(e.event_type==="photo") return "Photo added";
+  if(e.event_type==="edited") return "Details edited";
+  return "Comment";
+}
+function viewPhoto(url){
+  const bg = document.createElement("div");
+  bg.className = "modal-bg center-modal";
+  bg.onclick = closeModal;
+  bg.innerHTML = `<img src="${url}" style="max-width:92vw;max-height:85vh;border-radius:8px;">`;
+  document.body.appendChild(bg);
+}
+async function updateItemStatus(btn, itemId){
+  const { data: item } = await sb.from("maintenance_items").select("*").eq("id", itemId).single();
+  const newStatus = document.getElementById("statusSelect").value;
+  if(newStatus === item.status) return;
+  const restore = withBusyButton(btn, "Updating…");
+  await sb.from("maintenance_items").update({ status:newStatus, updated_at:new Date().toISOString() }).eq("id", itemId);
+  await sb.from("maintenance_events").insert({ item_id:itemId, event_type:"status_change", old_status:item.status, new_status:newStatus, created_by: state.user.id });
+  restore();
+  renderMaintenance();
+  updateTabBadges();
+}
+function openAddEventForm(itemId){
+  const bg = document.createElement("div");
+  bg.className = "modal-bg";
+  bg.innerHTML = `
+    <div class="modal">
+      <h3 style="margin-bottom:12px;">Add comment / photo</h3>
+      <label>Note</label>
+      <textarea id="evNote" rows="3" placeholder="What's new?"></textarea>
+      <label>Photos</label>
+      <input id="evPhotos" type="file" accept="image/*" capture="environment" multiple>
+      <div class="row" style="margin-top:6px;">
+        <button class="btn secondary block" onclick="closeModal()">Cancel</button>
+        <button class="btn block" onclick="submitAddEvent(this, '${itemId}')">Save</button>
+      </div>
+    </div>`;
+  document.body.appendChild(bg);
+}
+async function submitAddEvent(btn, itemId){
+  const restore = withBusyButton(btn);
+  const note = document.getElementById("evNote").value.trim();
+  const files = document.getElementById("evPhotos").files;
+  const { data: ev } = await sb.from("maintenance_events").insert({
+    item_id: itemId, event_type: files.length ? "photo" : "comment", note, created_by: state.user.id
+  }).select().single();
+  await uploadPhotos(files, itemId, ev ? ev.id : null);
+  restore();
+  closeModal();
+  openItem(itemId);
+}
+
+/* ---------- Edit issue details (fix a typo, wrong category, etc) ---------- */
+async function openEditItemForm(itemId){
+  const { data: item } = await sb.from("maintenance_items").select("*").eq("id", itemId).single();
+  const bg = document.createElement("div");
+  bg.className = "modal-bg";
+  bg.innerHTML = `
+    <div class="modal">
+      <h3 style="margin-bottom:12px;">Edit issue details</h3>
+      <label>Title</label>
+      <input id="eiTitle" value="${esc(item.title)}">
+      <label>Category</label>
+      <select id="eiCategory">${CATEGORIES.map(c=>`<option value="${c}" ${c===item.category?'selected':''}>${c}</option>`).join("")}</select>
+      <label>Urgency</label>
+      <select id="eiUrgency">${URGENCY.map(u=>`<option value="${u}" ${u===item.urgency?'selected':''}>${u}</option>`).join("")}</select>
+      <label>Description</label>
+      <textarea id="eiDesc" rows="3">${esc(item.description||"")}</textarea>
+      <div class="row" style="margin-top:6px;">
+        <button class="btn secondary block" onclick="closeModal()">Cancel</button>
+        <button class="btn block" onclick="submitEditItem(this, '${itemId}')">Save changes</button>
+      </div>
+    </div>`;
+  document.body.appendChild(bg);
+}
+async function submitEditItem(btn, itemId){
+  const restore = withBusyButton(btn);
+  const title = document.getElementById("eiTitle").value.trim();
+  const category = document.getElementById("eiCategory").value;
+  const urgency = document.getElementById("eiUrgency").value;
+  const description = document.getElementById("eiDesc").value.trim();
+  await sb.from("maintenance_items").update({ title, category, urgency, description, updated_at:new Date().toISOString() }).eq("id", itemId);
+  await sb.from("maintenance_events").insert({ item_id:itemId, event_type:"edited", note:"Details updated", created_by: state.user.id });
+  restore();
+  closeModal();
+  openItem(itemId);
+}
+
+/* ---------- Room condition snapshots ---------- */
+function openNewSnapshotForm(roomId){
+  const bg = document.createElement("div");
+  bg.className = "modal-bg";
+  bg.innerHTML = `
+    <div class="modal">
+      <h3 style="margin-bottom:12px;">Condition snapshot</h3>
+      <p class="muted" style="margin-top:-6px;margin-bottom:10px;">A dated set of photos for this room right now — no issue needed. Handy as a "before" record.</p>
+      <label>Note (optional)</label>
+      <textarea id="ssNote" rows="2" placeholder="e.g. Move-in walkthrough, all four walls + floor"></textarea>
+      <label>Photos</label>
+      <input id="ssPhotos" type="file" accept="image/*" capture="environment" multiple>
+      <div class="row" style="margin-top:6px;">
+        <button class="btn secondary block" onclick="closeModal()">Cancel</button>
+        <button class="btn block" onclick="submitNewSnapshot(this, ${roomId})">Save</button>
+      </div>
+    </div>`;
+  document.body.appendChild(bg);
+}
+async function submitNewSnapshot(btn, roomId){
+  const restore = withBusyButton(btn);
+  const note = document.getElementById("ssNote").value.trim();
+  const files = document.getElementById("ssPhotos").files;
+  const { data: snap } = await sb.from("room_snapshots").insert({ room_id: roomId, note, created_by: state.user.id }).select().single();
+  await uploadSnapshotPhotos(files, snap.id);
+  restore();
+  closeModal();
+  openRoom(roomId);
+}
+
+/* ---------- Printable room report (browser's Print > Save as PDF) ---------- */
+async function exportRoomReport(roomId){
+  const room = state.rooms.find(r=>r.id===roomId);
+  const { data: items } = await sb.from("maintenance_items").select("*").eq("room_id", roomId).order("created_at");
+  const { data: snapshots } = await sb.from("room_snapshots").select("*, profiles(full_name)").eq("room_id", roomId).order("created_at",{ascending:false});
+
+  let html = `<h1 style="font-family:Archivo,sans-serif;">Room ${esc(room.room_number)} — condition & maintenance report</h1>
+    <p style="color:#5B6270;">Generated ${new Date().toLocaleString()}</p>`;
+
+  html += `<h2 style="font-family:Archivo,sans-serif;font-size:18px;margin-top:20px;">Condition snapshots</h2>`;
+  if(!snapshots || !snapshots.length){ html += `<p>None recorded.</p>`; }
+  for(const s of (snapshots||[])){
+    const { data: photos } = await sb.from("room_snapshot_photos").select("*").eq("snapshot_id", s.id);
+    const imgs = await Promise.all((photos||[]).map(async p => {
+      const { data } = await sb.storage.from(PHOTO_BUCKET).createSignedUrl(p.storage_path, 300);
+      return data ? `<img src="${data.signedUrl}">` : "";
+    }));
+    html += `<div style="margin-bottom:14px;"><strong>${fmtDate(s.created_at)}</strong> — ${esc(s.profiles?s.profiles.full_name:"—")}
+      ${s.note ? `<br>${esc(s.note)}` : ""}<br>${imgs.join("")}</div>`;
+  }
+
+  html += `<h2 style="font-family:Archivo,sans-serif;font-size:18px;margin-top:20px;">Maintenance issues</h2>`;
+  if(!items || !items.length){ html += `<p>None logged.</p>`; }
+  for(const i of (items||[])){
+    const { data: photos } = await sb.from("maintenance_photos").select("*").eq("item_id", i.id);
+    const imgs = await Promise.all((photos||[]).map(async p => {
+      const { data } = await sb.storage.from(PHOTO_BUCKET).createSignedUrl(p.storage_path, 300);
+      return data ? `<img src="${data.signedUrl}">` : "";
+    }));
+    html += `<div style="margin-bottom:14px;"><strong>${esc(i.title)}</strong> — ${esc(i.category)}, ${i.urgency}, ${STATUS_LABEL[i.status]}
+      ${i.description ? `<br>${esc(i.description)}` : ""}<br>${imgs.join("")}</div>`;
+  }
+
+  document.getElementById("printArea").innerHTML = html;
+  window.print();
+}
+
+/* ============================================================
+   INVENTORY TAB
+   ============================================================ */
+async function renderInventory(){
+  const c = document.getElementById("tabContent");
+  if(state.view.screen === "invDetail"){ return renderInventoryDetail(c, state.view.itemId); }
+  const { data: items } = await sb.from("inventory_items").select("*").order("category").order("name");
+  const rows = (items||[]).map(i=>{
+    const low = i.low_stock_threshold!==null && i.quantity <= i.low_stock_threshold;
+    return `<div class="card ${low?'tag-strip':''}" style="${low?'border-left-color:var(--urgent);':''}cursor:pointer;" onclick="openInventoryDetail('${i.id}')">
+      <div class="row between">
+        <div><strong>${esc(i.name)}</strong> <span class="muted">(${esc(i.category)})</span></div>
+        <span class="mono" style="font-weight:600;">${i.quantity} ${esc(i.unit||"")}</span>
+      </div>
+      ${low ? `<div class="pill" style="background:var(--urgent);margin-top:6px;">Low stock</div>` : ""}
+    </div>`;
+  }).join("") || `<div class="empty">No inventory yet — add tools and consumables below.</div>`;
+  c.innerHTML = `
+    <div class="section-title">Tools & consumables</div>
+    <button class="btn block" style="margin-bottom:14px;" onclick="openNewInventoryForm()">+ Add item</button>
+    ${rows}
+  `;
+}
+function openNewInventoryForm(){
+  const bg = document.createElement("div");
+  bg.className = "modal-bg";
+  bg.innerHTML = `
+    <div class="modal">
+      <h3 style="margin-bottom:12px;">Add inventory item</h3>
+      <label>Name</label><input id="invName" placeholder="e.g. Silicone sealant">
+      <label>Type</label>
+      <select id="invCategory"><option value="consumable">Consumable</option><option value="tool">Tool</option><option value="spare_part">Spare part / fixture</option></select>
+      <label>Starting quantity</label><input id="invQty" type="number" value="1">
+      <label>Unit</label><input id="invUnit" placeholder="each, box, roll, L...">
+      <label>Low stock alert threshold (optional)</label><input id="invThresh" type="number" placeholder="e.g. 2">
+      <label>Location (optional)</label><input id="invLoc" placeholder="e.g. maintenance closet">
+      <div class="row" style="margin-top:6px;">
+        <button class="btn secondary block" onclick="closeModal()">Cancel</button>
+        <button class="btn block" onclick="submitNewInventory(this)">Save</button>
+      </div>
+    </div>`;
+  document.body.appendChild(bg);
+}
+async function submitNewInventory(btn){
+  const name = document.getElementById("invName").value.trim();
+  if(!name) return;
+  const restore = withBusyButton(btn);
+  const category = document.getElementById("invCategory").value;
+  const quantity = parseFloat(document.getElementById("invQty").value) || 0;
+  const unit = document.getElementById("invUnit").value.trim();
+  const threshVal = document.getElementById("invThresh").value;
+  const low_stock_threshold = threshVal ? parseFloat(threshVal) : null;
+  const location = document.getElementById("invLoc").value.trim();
+  const { data: item } = await sb.from("inventory_items").insert({ name, category, quantity, unit, low_stock_threshold, location }).select().single();
+  if(item && quantity){
+    await sb.from("inventory_events").insert({ item_id:item.id, change_qty:quantity, reason:"Initial stock", created_by:state.user.id });
+  }
+  restore();
+  closeModal();
+  renderInventory();
+  updateTabBadges();
+}
+function openInventoryDetail(itemId){ state.view = { screen:"invDetail", itemId }; renderInventory(); }
+async function renderInventoryDetail(c, itemId){
+  const { data: item } = await sb.from("inventory_items").select("*").eq("id", itemId).single();
+  const { data: events } = await sb.from("inventory_events").select("*, profiles(full_name), rooms(room_number)").eq("item_id", itemId).order("created_at",{ascending:false});
+  const rows = (events||[]).map(e=>`
+    <div class="card" style="padding:10px 14px;">
+      <div class="row between">
+        <strong style="font-size:13px;">${e.change_qty>0?'+':''}${e.change_qty} ${esc(item.unit||"")}</strong>
+        <span class="muted">${fmtDate(e.created_at)}</span>
+      </div>
+      <div class="muted">${esc(e.reason||"")}${e.rooms?` · Room ${esc(e.rooms.room_number)}`:""}</div>
+      <div class="muted" style="font-size:11px;">by ${esc(e.profiles?e.profiles.full_name:"—")}</div>
+    </div>
+  `).join("");
+  c.innerHTML = `
+    <button class="backlink" onclick="switchTab('inventory')">← Inventory</button>
+    <div class="card">
+      <div class="row between"><h2 style="font-size:18px;">${esc(item.name)}</h2><span class="mono" style="font-weight:700;font-size:18px;">${item.quantity} ${esc(item.unit||"")}</span></div>
+      <div class="muted">${esc(item.category)} ${item.location?(' · '+esc(item.location)):''}</div>
+      ${item.low_stock_threshold!==null ? `<div class="muted">Alert below ${item.low_stock_threshold} ${esc(item.unit||"")}</div>` : ""}
+    </div>
+    <div class="row" style="margin-bottom:14px;">
+      <button class="btn block" onclick="openStockChangeForm('${itemId}', 1)">+ Restock</button>
+      <button class="btn secondary block" onclick="openStockChangeForm('${itemId}', -1)">- Use / check out</button>
+    </div>
+    <div class="section-title">History</div>
+    ${rows || `<div class="empty">No history yet.</div>`}
+  `;
+}
+function openStockChangeForm(itemId, sign){
+  const roomOptions = state.rooms.map(r=>`<option value="${r.id}">${esc(r.room_number)}</option>`).join("");
+  const bg = document.createElement("div");
+  bg.className = "modal-bg";
+  bg.innerHTML = `
+    <div class="modal">
+      <h3 style="margin-bottom:12px;">${sign>0?"Restock":"Use / check out"}</h3>
+      <label>Amount</label><input id="scAmount" type="number" min="0" step="any" value="1">
+      ${sign<0?`<label>Used on room (optional)</label><select id="scRoom"><option value="">—</option>${roomOptions}</select>`:""}
+      <label>Note (optional)</label><input id="scReason" placeholder="${sign>0?"e.g. bought more from hardware store":"e.g. fixed leak in room 12"}">
+      <div class="row" style="margin-top:6px;">
+        <button class="btn secondary block" onclick="closeModal()">Cancel</button>
+        <button class="btn block" onclick="submitStockChange(this, '${itemId}', ${sign})">Save</button>
+      </div>
+    </div>`;
+  document.body.appendChild(bg);
+}
+async function submitStockChange(btn, itemId, sign){
+  const amount = parseFloat(document.getElementById("scAmount").value) || 0;
+  if(!amount) return;
+  const restore = withBusyButton(btn);
+  const roomEl = document.getElementById("scRoom");
+  const related_room_id = roomEl && roomEl.value ? parseInt(roomEl.value) : null;
+  const reason = document.getElementById("scReason").value.trim() || (sign>0?"Restock":"Used");
+  const change_qty = sign>0 ? amount : -amount;
+  const { data: item } = await sb.from("inventory_items").select("*").eq("id", itemId).single();
+  const newQty = Math.max(0, item.quantity + change_qty);
+  await sb.from("inventory_items").update({ quantity:newQty, updated_at:new Date().toISOString() }).eq("id", itemId);
+  await sb.from("inventory_events").insert({ item_id:itemId, change_qty, reason, related_room_id, created_by: state.user.id });
+  restore();
+  closeModal();
+  openInventoryDetail(itemId);
+  updateTabBadges();
+}
+
+/* ============================================================
+   SHOPPING TAB — shared "need to buy" list, rule-sorted (no AI).
+   ============================================================ */
+async function renderShopping(){
+  const c = document.getElementById("tabContent");
+  if(state.view.screen === "shopDetail"){ return renderShoppingDetail(c, state.view.itemId); }
+
+  const { data: items } = await sb.from("shopping_items").select("*, rooms(room_number), profiles(full_name)").order("created_at",{ascending:false});
+  const active = (items||[]).filter(i => i.status==="needed" || i.status==="sourcing");
+  const bought = (items||[]).filter(i => i.status==="bought");
+
+  const hardware = active.filter(i => shopBucket(i)==="hardware");
+  const secondhand = active.filter(i => shopBucket(i)==="secondhand");
+
+  const row = (i) => `<div class="card" style="cursor:pointer;" onclick="openShopItem('${i.id}')">
+    <div class="row between">
+      <div><strong>${esc(i.name)}</strong>${i.quantity>1?` <span class="muted">×${i.quantity}</span>`:""}</div>
+      ${i.estimated_cost!=null ? `<span class="mono muted">~$${i.estimated_cost}</span>` : ""}
+    </div>
+    <div class="muted">${i.rooms?`Room ${esc(i.rooms.room_number)}`:"General"} · asked by ${esc(i.profiles?i.profiles.full_name:"—")}</div>
+  </div>`;
+
+  c.innerHTML = `
+    <div class="section-title">Need to buy</div>
+    <button class="btn block" style="margin-bottom:14px;" onclick="openNewShopForm()">+ Add to buy list</button>
+
+    <div class="row between"><h3 style="font-size:14px;">🔨 Grab on the next hardware run</h3></div>
+    <p class="muted" style="margin:2px 0 8px;">Cheap or everyday stuff — under $${SHOP_THRESHOLD}, or hardware/consumables regardless of price.</p>
+    ${hardware.map(row).join("") || `<div class="empty" style="padding:16px;">Nothing here right now.</div>`}
+
+    <div class="row between" style="margin-top:16px;"><h3 style="font-size:14px;">🛋 Check secondhand first</h3></div>
+    <p class="muted" style="margin:2px 0 8px;">Bigger-ticket items (vanities, sinks, mirrors, doors, appliances) — worth a look on Marketplace/eBay before buying new.</p>
+    ${secondhand.map(row).join("") || `<div class="empty" style="padding:16px;">Nothing here right now.</div>`}
+
+    ${bought.length ? `
+      <div class="section-title" style="margin-top:20px;">Recently bought</div>
+      ${bought.slice(0,10).map(i=>`<div class="card" style="opacity:0.7;">
+        <div class="row between">
+          <div><strong>${esc(i.name)}</strong></div>
+          <span class="muted">${i.source_type?esc(i.source_type):""}${i.actual_cost!=null?` · $${i.actual_cost}`:""}</span>
+        </div>
+      </div>`).join("")}
+    ` : ""}
+  `;
+}
+
+function openNewShopForm(){
+  const roomOptions = state.rooms.map(r=>`<option value="${r.id}">${esc(r.room_number)}</option>`).join("");
+  const bg = document.createElement("div");
+  bg.className = "modal-bg";
+  bg.innerHTML = `
+    <div class="modal">
+      <h3 style="margin-bottom:12px;">Add to buy list</h3>
+      <label>Item</label>
+      <input id="shName" placeholder="e.g. Porcelain sink, curtain rod, screws...">
+      <label>Quantity</label>
+      <input id="shQty" type="number" min="1" value="1">
+      <label>Rough estimated cost, $ (optional — helps decide hardware run vs secondhand)</label>
+      <input id="shCost" type="number" min="0" step="any" placeholder="e.g. 20">
+      <label>For which room?</label>
+      <select id="shRoom"><option value="">General (not room-specific)</option>${roomOptions}</select>
+      <label>Notes (optional)</label>
+      <textarea id="shNotes" rows="2" placeholder="Size, colour, brand, anything specific"></textarea>
+      <div class="row" style="margin-top:6px;">
+        <button class="btn secondary block" onclick="closeModal()">Cancel</button>
+        <button class="btn block" onclick="submitNewShopItem(this)">Save</button>
+      </div>
+    </div>`;
+  document.body.appendChild(bg);
+}
+async function submitNewShopItem(btn){
+  const name = document.getElementById("shName").value.trim();
+  if(!name) return;
+  const restore = withBusyButton(btn);
+  const quantity = parseFloat(document.getElementById("shQty").value) || 1;
+  const costVal = document.getElementById("shCost").value;
+  const estimated_cost = costVal ? parseFloat(costVal) : null;
+  const roomVal = document.getElementById("shRoom").value;
+  const room_id = roomVal ? parseInt(roomVal) : null;
+  const notes = document.getElementById("shNotes").value.trim();
+  await sb.from("shopping_items").insert({
+    name, category: "other", quantity, estimated_cost, room_id, notes, requested_by: state.user.id
+  });
+  restore();
+  closeModal();
+  renderShopping();
+  updateTabBadges();
+}
+function openShopItem(itemId){ state.view = { screen:"shopDetail", itemId }; renderShopping(); }
+async function renderShoppingDetail(c, itemId){
+  const { data: i } = await sb.from("shopping_items").select("*, rooms(room_number), profiles(full_name)").eq("id", itemId).single();
+  const bucket = shopBucket(i);
+  c.innerHTML = `
+    <button class="backlink" onclick="switchTab('shopping')">← Buy list</button>
+    <div class="card">
+      <h2 style="font-size:18px;">${esc(i.name)}</h2>
+      <div class="muted">qty ${i.quantity}${i.estimated_cost!=null?` · ~$${i.estimated_cost}`:""}</div>
+      <div class="muted">For ${i.rooms ? `room ${esc(i.rooms.room_number)}` : "General (not room-specific)"}</div>
+      <div class="muted">Requested by ${esc(i.profiles?i.profiles.full_name:"—")}</div>
+      ${i.notes ? `<p style="margin-top:8px;">${esc(i.notes)}</p>` : ""}
+      <div class="pill" style="background:${bucket==='hardware'?'var(--medium)':'var(--accent)'};margin-top:8px;">
+        ${bucket==='hardware' ? '🔨 Hardware run' : '🛋 Check secondhand first'}
+      </div>
+      <div class="muted" style="margin-top:6px;">Status: ${SHOP_STATUS[i.status]}</div>
+    </div>
+    ${i.status!=="bought" && i.status!=="cancelled" ? `
+      <button class="btn block" style="margin-bottom:8px;" onclick="openMarkBoughtForm('${i.id}')">Mark as bought</button>
+      <button class="btn secondary block" onclick="cancelShopItem(this, '${i.id}')">Cancel this request</button>
+    ` : ""}
+  `;
+}
+function openMarkBoughtForm(itemId){
+  const bg = document.createElement("div");
+  bg.className = "modal-bg";
+  bg.innerHTML = `
+    <div class="modal">
+      <h3 style="margin-bottom:12px;">Mark as bought</h3>
+      <label>Sourced how?</label>
+      <select id="mbSource"><option value="secondhand">Secondhand</option><option value="new">Bought new</option></select>
+      <label>Actual cost, $ (optional)</label>
+      <input id="mbCost" type="number" min="0" step="any">
+      <div class="row" style="margin-top:6px;">
+        <button class="btn secondary block" onclick="closeModal()">Cancel</button>
+        <button class="btn block" onclick="submitMarkBought(this, '${itemId}')">Save</button>
+      </div>
+    </div>`;
+  document.body.appendChild(bg);
+}
+async function submitMarkBought(btn, itemId){
+  const restore = withBusyButton(btn);
+  const source_type = document.getElementById("mbSource").value;
+  const costVal = document.getElementById("mbCost").value;
+  const actual_cost = costVal ? parseFloat(costVal) : null;
+  await sb.from("shopping_items").update({ status:"bought", source_type, actual_cost, updated_at:new Date().toISOString() }).eq("id", itemId);
+  restore();
+  closeModal();
+  switchTab("shopping");
+}
+async function cancelShopItem(btn, itemId){
+  const restore = withBusyButton(btn);
+  await sb.from("shopping_items").update({ status:"cancelled", updated_at:new Date().toISOString() }).eq("id", itemId);
+  restore();
+  switchTab("shopping");
+}
+
+boot();
+</script>
+</body>
+</html>
